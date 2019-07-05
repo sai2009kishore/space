@@ -1,0 +1,261 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Space Ranger</title>
+    <script src="../scripts/phaser.min.js"></script>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <script type="text/javascript">
+
+        window.onload = function () {
+
+            const speed = 5;
+            const fontSize = 50;
+            const GAME_PAUSED = 'GAME PAUSED';
+            const SCORE_PER_ENEMY = 100;
+            const ENEMY_RELEASE_FREQUENCY = 1000;
+            const EMPTY_TEXT = '';
+            const ENEMY_VELOCITY = -300;
+            const CHANGE_BACKGROUND_FOR_SCORE = 5000;
+            const GAME_OVER_TEXT = 'GAME OVER\nYOUR SCORE: %score';
+            const HIT_SPACE_TO_RESTART = 'HIT ENTER TO RESTART';
+            const BULLET_LIMIT = 10;
+            const PAUSE_KEY = Phaser.Keyboard.ENTER;
+            const getScoreText = function (score) {
+                return 'SCORE : ' + score;
+            }
+
+            var game = new Phaser.Game(1800, 850, Phaser.CANVAS, 'space-ranger', { preload: preload, create: create, update: update, render: render });
+            var spaceship;
+            var timer;
+            var score = 0;
+            var scoreText, gamePaused;
+            var enemies = [];
+            var count = 0;
+            var isGameOver = false;
+            var bullet;
+            var explosion;
+
+            function preload() {
+
+                // Load font and images
+                game.load.bitmapFont('font', './fonts/font.png', './fonts/font.fnt');
+                game.load.spritesheet('spaceship', './assets/spaceship-1.png', 378, 445, 1);
+                game.load.spritesheet('enemy', './assets/enemy.png', 791, 534, 1);
+                game.load.spritesheet('bullet', './assets/bullet.png', 290, 134);
+                game.load.spritesheet('explosion', './assets/explosion.png', 192, 192);
+
+                // Game settings
+                game.physics.setBoundsToWorld();
+                game.scale.pageAlignHorizontally = true;
+                game.scale.pageAlignVertically = true;
+                game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
+
+                changeBackgroundColor();
+            }
+
+            /**
+             * Change the background to a random color
+             */
+            function changeBackgroundColor() {
+                game.stage.backgroundColor = Phaser.Color.getRandomColor(50, 255, 255);
+            }
+
+            /**
+             * Used to initialize the game parameters and objects
+             */
+            function create() {
+                // Initialize the game parameters
+                isGameOver = false;
+                gamePaused = game.add.bitmapText(game.width - 350, 50, 'font', EMPTY_TEXT, fontSize);
+                scoreText = game.add.bitmapText(50, 50, 'font', getScoreText(0), fontSize);
+
+                // Add spaceship and it's constraints
+                spaceship = game.add.sprite(100, game.height / 2, 'spaceship');
+                spaceship.scale.setTo(0.3);
+                game.physics.enable(spaceship, Phaser.Physics.ARCADE);
+
+                // Spaceship colliding logic
+                spaceship.body.collideWorldBounds = true;
+                spaceship.body.checkCollision.up = false;
+                spaceship.body.checkCollision.down = false;
+                spaceship.body.immovable = true;
+                spaceship.body.onCollide = new Phaser.Signal();
+                spaceship.body.onCollide.add(spaceshipCollision, game);
+
+
+                // Add bullets to the spaceship
+                bullet = game.add.weapon(BULLET_LIMIT, 'bullet');
+                bullet.bullets.setAll('scale.x', 0.3);
+                bullet.bullets.setAll('scale.y', 0.3);
+                bullet.setBulletFrames(0, 1, false);
+                bullet.bulletKillType = Phaser.Weapon.KILL_WORLD_BOUNDS;
+                bullet.bulletSpeed = 500;
+                bullet.fireRate = 300;
+                bullet.trackSprite(spaceship, spaceship.width, spaceship.height / 2, false);
+                bullet.fireAngle = Phaser.ANGLE_RIGHT;
+
+                // Release first enemy
+                releaseEnemy();
+            }
+
+            /**
+             * Event that is triggered when spaceship collides with an enemy
+             */
+            function spaceshipCollision() {
+                isGameOver = true;
+            }
+
+            /**
+             * Used to release an enemy from a random position
+             */
+            function releaseEnemy() {
+
+                // Release a new enemy
+                let enemy = game.add.sprite(game.width, game.world.randomY, 'enemy');
+                enemy.name = 'enemy' + count++;
+                enemy.scale.setTo(0.15);
+                game.physics.enable(enemy, Phaser.Physics.ARCADE);
+                enemy.checkWorldBounds = true;
+                enemy.animations.play('release', 1, true);
+                enemy.body.velocity.x = ENEMY_VELOCITY;
+                enemy.events.onOutOfBounds.add(onEnemyOut, this);
+                enemies.push(enemy);
+                enemy.body.immovable = true;
+
+                // To maintain timer for frequency
+                timer = game.time.now + ENEMY_RELEASE_FREQUENCY;
+
+                // Keep Score always on top
+                game.world.bringToTop(scoreText);
+            }
+
+            /**
+             * Used to continuously update the game
+             */
+            function update() {
+                // Release an enemy at ENEMY_RELEASE_FREQUENCY frequency
+                if (game.time.now > timer) {
+                    releaseEnemy();
+                }
+
+                // Spaceship movement
+                if (game.input.keyboard.isDown(Phaser.Keyboard.LEFT)) {
+                    spaceship.position.x = spaceship.position.x - speed;
+                } else if (game.input.keyboard.isDown(Phaser.Keyboard.RIGHT)) {
+                    spaceship.position.x = spaceship.position.x + speed;
+                }
+
+                if (game.input.keyboard.isDown(Phaser.Keyboard.UP)) {
+                    spaceship.position.y = spaceship.position.y - speed;
+                } else if (game.input.keyboard.isDown(Phaser.Keyboard.DOWN)) {
+                    spaceship.position.y = spaceship.position.y + speed;
+                }
+
+                // Game pause and restart
+                window.onkeypress = function (key) {
+                    if (key.keyCode === PAUSE_KEY) {
+                        if (isGameOver) {
+                            game.paused = false;
+                            game.state.restart();
+                        } else {
+                            game.paused = !game.paused;
+                            if (game.paused) {
+                                gamePaused.setText(GAME_PAUSED);
+                                game.world.bringToTop(gamePaused);
+                            } else {
+                                gamePaused.setText(EMPTY_TEXT);
+                            }
+                        }
+                    }
+                    if (key.keyCode === Phaser.Keyboard.SPACEBAR) {
+                        if (!game.paused) {
+                            bullet.fire();
+                        }
+                    }
+                }
+
+                // Check collision for newly released enemies
+                enemies.map(function (enemy) {
+                    game.physics.arcade.collide(spaceship, enemy);
+                    game.physics.arcade.collide(bullet.bullets, enemy, hitEnemy, null, this);
+                });
+
+                // Check for GAME OVER
+                if (isGameOver) {
+                    gameOver();
+                }
+            }
+
+            function hitEnemy(enemy, bullet) {
+                updateScore();
+                let x = enemy.position.x - enemy.body.width;
+                let y = enemy.position.y - enemy.body.halfHeight;
+                // Destroy enemy and bullet
+                enemy.kill();
+                bullet.kill();
+
+                explosion = game.add.sprite(x, y, 'explosion');
+                explosion.animations.add('explode');
+                explosion.animations.play('explode', 5, false, true);
+                explosion.animations.currentAnim.speed = 10;
+                // explosion.kill();
+            }
+
+            function gameOver() {
+
+                // Freeze the game
+                scoreText.setText(EMPTY_TEXT);
+                gamePaused.setText(EMPTY_TEXT);
+                game.paused = true;
+
+                // Show GAME OVER Message and score
+                let gameOverText = game.add.bitmapText(0, 0, 'font', GAME_OVER_TEXT.replace('%score', score), fontSize + 10);
+                gameOverText.align = 'center';
+                gameOverText.x = game.width / 2 - gameOverText.textWidth / 2;
+                gameOverText.y = game.height / 2 - gameOverText.textHeight / 2;
+
+                // Show instruction to user
+                let restartInstruction = game.add.bitmapText(0, 0, 'font', HIT_SPACE_TO_RESTART, 30);
+                restartInstruction.align = 'center';
+                restartInstruction.x = game.width / 2 - restartInstruction.textWidth / 2;
+                restartInstruction.y = game.height / 2 + gameOverText.textHeight / 2;
+            }
+
+            function onEnemyOut(enemy) {
+                // Remove enemy from Game
+                enemies = enemies.filter(function (enemyArray) {
+                    return enemyArray.name !== enemy.name;
+                });
+            }
+
+            function updateScore() {
+                // Update score
+                score += SCORE_PER_ENEMY;
+                scoreText.setText(getScoreText(score));
+
+                // Change background for specified score
+                if (score > 0 && score % CHANGE_BACKGROUND_FOR_SCORE === 0) {
+                    changeBackgroundColor();
+                }
+
+            }
+
+            function render() {
+                // game.debug.bodyInfo(spaceship, 16, 24);
+            }
+        };
+    </script>
+</body>
+
+</html>
