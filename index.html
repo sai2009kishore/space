@@ -31,6 +31,8 @@
             const HIT_SPACE_TO_RESTART = 'HIT ENTER TO RESTART';
             const BULLET_LIMIT = 10;
             const PAUSE_KEY = Phaser.Keyboard.ENTER;
+            const BULLET_SPEED = 500;
+            const FIRE_RATE = 150;
             const getScoreText = function (score) {
                 return 'SCORE : ' + score;
             }
@@ -54,6 +56,7 @@
                 game.load.spritesheet('enemy', './assets/enemy.png', 791, 534, 1);
                 game.load.spritesheet('bullet', './assets/bullet.png', 290, 134);
                 game.load.spritesheet('explosion', './assets/explosion.png', 192, 192);
+                game.load.spritesheet('star', './assets/star.png', 7, 7);
 
                 // Game settings
                 game.physics.setBoundsToWorld();
@@ -80,6 +83,11 @@
                 gamePaused = game.add.bitmapText(game.width - 350, 50, 'font', EMPTY_TEXT, fontSize);
                 scoreText = game.add.bitmapText(50, 50, 'font', getScoreText(0), fontSize);
 
+                // Add star background
+                for (let i = 0; i < 1000; i++) {
+                    game.add.sprite(game.world.randomX, game.world.randomY, 'star');
+                }
+
                 // Add spaceship and it's constraints
                 spaceship = game.add.sprite(100, game.height / 2, 'spaceship');
                 spaceship.scale.setTo(0.3);
@@ -100,8 +108,8 @@
                 bullet.bullets.setAll('scale.y', 0.3);
                 bullet.setBulletFrames(0, 1, false);
                 bullet.bulletKillType = Phaser.Weapon.KILL_WORLD_BOUNDS;
-                bullet.bulletSpeed = 500;
-                bullet.fireRate = 300;
+                bullet.bulletSpeed = BULLET_SPEED;
+                bullet.fireRate = FIRE_RATE;
                 bullet.trackSprite(spaceship, spaceship.width, spaceship.height / 2, false);
                 bullet.fireAngle = Phaser.ANGLE_RIGHT;
 
@@ -127,7 +135,6 @@
                 enemy.scale.setTo(0.15);
                 game.physics.enable(enemy, Phaser.Physics.ARCADE);
                 enemy.checkWorldBounds = true;
-                enemy.animations.play('release', 1, true);
                 enemy.body.velocity.x = ENEMY_VELOCITY;
                 enemy.events.onOutOfBounds.add(onEnemyOut, this);
                 enemies.push(enemy);
